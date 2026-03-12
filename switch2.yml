@@ -1,0 +1,23 @@
+- name: Configuration de Switch2 
+- hosts: Switch2
+  gather_facts: no
+  
+  
+  tasks:
+    - name: Configurer les interfaces swp1 et swp2 
+      nclu:
+        commands:
+          - net add interface swp1-2
+          - net add bridge bridge ports swp1-2
+          
+        commit: yes
+
+    - name: Vérifier les interfaces
+      command: net show interface
+      register: interface_status
+
+    - name: Afficher les interfaces
+      debug:
+        msg: "{{ interface_status.stdout_lines }}"  
+    
+

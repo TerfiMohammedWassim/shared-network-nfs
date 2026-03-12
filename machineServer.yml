@@ -1,0 +1,124 @@
+
+- name: Configuration Serveur NFS Debian
+  hosts: nfs_server
+  become: yes
+
+  vars:
+    bond_name: bond0
+    bond_slaves:
+      - ens33
+      - ens34
+    bond_ip: 192.168.10.10
+    bond_prefix: 24
+    nfs_share: /srv/partage
+    nfs_clients:
+      - network: 192.168.10.0/24
+        options: "rw,sync,no_subtree_check,no_root_squash"
+      - network: 192.168.20.0/24
+        options: "ro,sync,no_subtree_check"
+
+  tasks:
+
+    - name: Mettre à jour les paquets
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Installer ifenslave et nfs-kernel-server
+      apt:
+        name:
+          - ifenslave
+          - nfs-kernel-server
+          - nfs-common
+        state: present
+
+    - name: Charger le module bonding
+      modprobe:
+        name: bonding
+        state: present
+
+    - name: Rendre le module bonding persistant
+      lineinfile:
+        path: /etc/modules
+        line: bonding
+        create: yes
+
+    - name: Configurer le bond0 (ens33 + ens34)
+      copy:
+        dest: /etc/network/interfaces
+        content: |
+          # Loopback
+          auto lo
+          iface lo inet loopback
+
+          # ens33 - esclave du bond
+          auto ens33
+          iface ens33 inet manual
+              bond-master bond0
+
+          # ens34 - esclave du bond
+          auto ens34
+          iface ens34 inet manual
+              bond-master bond0
+
+          # bond0 - agrégation LACP
+          auto bond0
+          iface bond0 inet static
+              address {{ bond_ip }}
+              netmask 255.255.255.0
+              bond-slaves ens33 ens34
+              bond-mode 802.3ad
+              bond-lacp-rate fast
+              bond-miimon 100
+              bond-min-links 1
+              mtu 9216
+      notify: restart networking
+
+    - name: Créer le dossier partagé
+      file:
+        path: "{{ nfs_share }}"
+        state: directory
+        owner: nobody
+        group: nogroup
+        mode: '0755'
+
+    - name: Configurer /etc/exports
+      copy:
+        dest: /etc/exports
+        content: |
+          # Partage NFS - VLAN 10 (lecture/écriture)
+          {{ nfs_share }}  192.168.10.0/24(rw,sync,no_subtree_check,no_root_squash)
+          # Partage NFS - VLAN 20 (lecture seule)
+          {{ nfs_share }}  192.168.20.0/24(ro,sync,no_subtree_check)
+      notify: reload nfs exports
+
+    - name: Activer et démarrer nfs-kernel-server
+      systemd:
+        name: nfs-kernel-server
+        enabled: yes
+        state: started
+
+    - name: Vérifier le statut du bond
+      command: cat /proc/net/bonding/bond0
+      register: bond_status
+
+    - name: Afficher le statut du bond
+      debug:
+        msg: "{{ bond_status.stdout_lines }}"
+
+    - name: Vérifier les exports NFS actifs
+      command: exportfs -v
+      register: nfs_exports
+
+    - name: Afficher les exports NFS
+      debug:
+        msg: "{{ nfs_exports.stdout_lines }}"
+
+  handlers:
+    - name: restart networking
+      systemd:
+        name: networking
+        state: restarted
+
+    - name: reload nfs exports
+      command: exportfs -ra

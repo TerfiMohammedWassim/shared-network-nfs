@@ -1,0 +1,57 @@
+
+- name: Configuration de Switch3
+  hosts: Switch3
+  gather_facts: no
+
+  tasks:
+
+    - name: Configurer les interfaces swp1 et swp2
+      nclu:
+        commands:
+          - add interface swp1-2
+          - add bridge bridge ports swp1-2
+          - add bridge bridge vlan-aware
+          - add bridge bridge vids 10,20,30
+        commit: yes
+
+    - name: Configurer swp1 trunk vers SW1 (VLAN 10)
+      nclu:
+        commands:
+          - add interface swp1 bridge trunk vlans 10
+        commit: yes
+
+    - name: Configurer swp2 trunk vers SW2 (VLAN 20)
+      nclu:
+        commands:
+          - add interface swp2 bridge trunk vlans 20
+        commit: yes
+
+    - name: Configurer les IPs de routage sur les VLANs
+      nclu:
+        commands:
+          - add vlan 10 ip address 192.168.10.254/24
+          - add vlan 20 ip address 192.168.20.254/24
+          - add vlan 30 ip address 192.168.30.254/24
+        commit: yes
+
+    - name: Activer le routage IP (ip forward)
+      nclu:
+        commands:
+          - add routing route-map ALLOW permit 10
+        commit: yes
+
+    - name: Vérifier les interfaces
+      command: net show interface
+      register: interface_status
+
+    - name: Afficher les interfaces
+      debug:
+        msg: "{{ interface_status.stdout_lines }}"
+
+    - name: Vérifier les VLANs
+      command: net show bridge vlan
+      register: vlan_status
+
+    - name: Afficher les VLANs
+      debug:
+        msg: "{{ vlan_status.stdout_lines }}"
