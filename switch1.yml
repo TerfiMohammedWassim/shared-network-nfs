@@ -8,8 +8,9 @@
     - name: Configurer les interfaces swp1 à swp3 et le bridge
       nclu:
         commands:
-          - add interface swp1-3
-          - add bridge bridge ports swp1-3
+          - add interface swp1-4
+          - add bond bond0 bond slaves swp1-2
+          - add bridge bridge ports swp1-4
         commit: yes         
 
     - name: Vérifier les interfaces
