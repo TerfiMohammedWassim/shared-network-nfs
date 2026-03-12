@@ -1,44 +1,99 @@
-
-- name: Configuration de Switch3
+- name: Configuration de Switch3 (L3 - Routage inter-VLAN + ACL)
   hosts: Switch3
   gather_facts: no
 
   tasks:
 
-    - name: Configurer les interfaces swp1 et swp2
+    - name: Supprimer la configuration existante
       nclu:
         commands:
-          - add interface swp1-2
-          - add bridge bridge ports swp1-2
+          - del all
+        commit: yes
+
+    - name: Configurer le bridge VLAN-aware
+      nclu:
+        commands:
           - add bridge bridge vlan-aware
-          - add bridge bridge vids 10,20,30
+          - add bridge bridge ports swp1,swp2
+          - add bridge bridge vids 10,20
         commit: yes
 
-    - name: Configurer swp1 trunk vers SW1 (VLAN 10)
+    - name: Configurer swp1 trunk vers Switch1 (VLAN 10 + 20)
       nclu:
         commands:
-          - add interface swp1 bridge trunk vlans 10
+          - add interface swp1 bridge trunk vlans 10,20
         commit: yes
 
-    - name: Configurer swp2 trunk vers SW2 (VLAN 20)
+    - name: Configurer swp2 trunk vers Switch2 (VLAN 10 + 20)
       nclu:
         commands:
-          - add interface swp2 bridge trunk vlans 20
+          - add interface swp2 bridge trunk vlans 10,20
         commit: yes
 
-    - name: Configurer les IPs de routage sur les VLANs
+    - name: Configurer les SVIs - passerelles inter-VLAN
       nclu:
         commands:
           - add vlan 10 ip address 192.168.10.254/24
           - add vlan 20 ip address 192.168.20.254/24
-          - add vlan 30 ip address 192.168.30.254/24
         commit: yes
 
-    - name: Activer le routage IP (ip forward)
+    - name: Activer le routage L3
       nclu:
         commands:
-          - add routing route-map ALLOW permit 10
+          - add routing defaults datacenter
         commit: yes
+
+    - name: Créer le fichier ACL iptables pour isolation Machine1/Machine2
+      copy:
+        dest: /etc/cumulus/acl/policy.d/99_block_inter_vlan.rules
+        content: |
+          [iptables]
+
+          # Autoriser les connexions déjà établies (réponses retour NFS → VLAN20)
+          -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+          # Autoriser VLAN10 → Serveur NFS
+          -A FORWARD -i vlan10 -d 192.168.10.10 -j ACCEPT
+
+          # Autoriser VLAN20 → Serveur NFS
+          -A FORWARD -i vlan20 -d 192.168.10.10 -j ACCEPT
+
+          # Bloquer VLAN10 → VLAN20 (isolation Machine1 / Machine2)
+          -A FORWARD -i vlan10 -d 192.168.20.0/24 -j DROP
+
+          # Bloquer VLAN20 → VLAN10 (isolation Machine2 / Machine1)
+          -A FORWARD -i vlan20 -d 192.168.10.0/24 -j DROP
+
+    - name: Appliquer les règles ACL iptables
+      command: cl-acltool -i
+      ignore_errors: yes
+
+    - name: Appliquer les règles iptables directement (Cumulus VX)
+      shell: |
+        iptables -F FORWARD
+        iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+        iptables -A FORWARD -i vlan10 -d 192.168.10.10 -j ACCEPT
+        iptables -A FORWARD -i vlan20 -d 192.168.10.10 -j ACCEPT
+        iptables -A FORWARD -i vlan10 -d 192.168.20.0/24 -j DROP
+        iptables -A FORWARD -i vlan20 -d 192.168.10.0/24 -j DROP
+
+    - name: Installer iptables-persistent pour la persistance au reboot
+      apt:
+        name: iptables-persistent
+        state: present
+      ignore_errors: yes
+
+    - name: Sauvegarder les règles iptables
+      command: netfilter-persistent save
+      ignore_errors: yes
+
+    - name: Vérifier les règles iptables actives
+      command: iptables -L FORWARD -v --line-numbers
+      register: iptables_status
+
+    - name: Afficher les règles iptables
+      debug:
+        msg: "{{ iptables_status.stdout_lines }}"
 
     - name: Vérifier les interfaces
       command: net show interface
@@ -55,3 +110,11 @@
     - name: Afficher les VLANs
       debug:
         msg: "{{ vlan_status.stdout_lines }}"
+
+    - name: Vérifier la table de routage
+      command: net show route
+      register: route_status
+
+    - name: Afficher les routes
+      debug:
+        msg: "{{ route_status.stdout_lines }}"

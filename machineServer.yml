@@ -1,5 +1,4 @@
-
-- name: Configuration Serveur NFS Debian
+- name: Configuration Serveur NFS Debian (bond0 LACP + NFS)
   hosts: nfs_server
   become: yes
 
@@ -9,13 +8,8 @@
       - ens33
       - ens34
     bond_ip: 192.168.10.10
-    bond_prefix: 24
+    bond_gateway: 192.168.10.254
     nfs_share: /srv/partage
-    nfs_clients:
-      - network: 192.168.10.0/24
-        options: "rw,sync,no_subtree_check,no_root_squash"
-      - network: 192.168.20.0/24
-        options: "ro,sync,no_subtree_check"
 
   tasks:
 
@@ -43,7 +37,7 @@
         line: bonding
         create: yes
 
-    - name: Configurer le bond0 (ens33 + ens34)
+    - name: Configurer le bond0 (ens33 + ens34) avec gateway
       copy:
         dest: /etc/network/interfaces
         content: |
@@ -66,6 +60,7 @@
           iface bond0 inet static
               address {{ bond_ip }}
               netmask 255.255.255.0
+              gateway {{ bond_gateway }}
               bond-slaves ens33 ens34
               bond-mode 802.3ad
               bond-lacp-rate fast

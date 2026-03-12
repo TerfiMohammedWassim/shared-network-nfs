@@ -1,5 +1,4 @@
-
-- name: Configuration de Machine Debian 1
+- name: Configuration de Machine Debian 1 (VLAN 10)
   hosts: machine1
   become: yes
   gather_facts: no
@@ -14,7 +13,7 @@
         state: present
         update_cache: yes
 
-    - name: Configurer ens33 avec IP fixe
+    - name: Configurer ens33 avec IP fixe et gateway
       copy:
         dest: /etc/network/interfaces
         content: |
@@ -22,11 +21,12 @@
           auto lo
           iface lo inet loopback
 
-          # Interface ens33
+          # Interface ens33 - VLAN 10
           auto ens33
           iface ens33 inet static
               address 192.168.10.3
               netmask 255.255.255.0
+              gateway 192.168.10.254
       notify: restart networking
 
     - name: Vérifier l'interface ens33
@@ -36,6 +36,14 @@
     - name: Afficher le résultat
       debug:
         msg: "{{ ip_status.stdout_lines }}"
+
+    - name: Vérifier la route par défaut
+      command: ip route show
+      register: route_status
+
+    - name: Afficher les routes
+      debug:
+        msg: "{{ route_status.stdout_lines }}"
 
   handlers:
     - name: restart networking

@@ -1,5 +1,4 @@
-
-- name: Configuration Machine Debian 2
+- name: Configuration Machine Debian 2 (VLAN 20)
   hosts: machine2
   become: yes
   gather_facts: no
@@ -14,7 +13,7 @@
         state: present
         update_cache: yes
 
-    - name: Configurer ens33 avec IP fixe
+    - name: Configurer ens33 avec IP fixe et gateway
       copy:
         dest: /etc/network/interfaces
         content: |
@@ -22,11 +21,12 @@
           auto lo
           iface lo inet loopback
 
-          # Interface ens33
+          # Interface ens33 - VLAN 20
           auto ens33
           iface ens33 inet static
-              address 192.168.1.1
+              address 192.168.20.3
               netmask 255.255.255.0
+              gateway 192.168.20.254
       notify: restart networking
 
     - name: Vérifier l'interface ens33
@@ -36,6 +36,14 @@
     - name: Afficher le résultat
       debug:
         msg: "{{ ip_status.stdout_lines }}"
+
+    - name: Vérifier la route par défaut
+      command: ip route show
+      register: route_status
+
+    - name: Afficher les routes
+      debug:
+        msg: "{{ route_status.stdout_lines }}"
 
   handlers:
     - name: restart networking

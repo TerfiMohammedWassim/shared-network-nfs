@@ -1,22 +1,57 @@
-
-- name: Configuration de Switch1
+- name: Configuration de Switch1 (L2 - VLAN 10/20)
   hosts: Switch1
   gather_facts: no
 
   tasks:
 
-    - name: Configurer les interfaces swp1 à swp3 et le bridge
+    - name: Supprimer la configuration existante
       nclu:
         commands:
-          - add interface swp1-4
-          - add bond bond0 bond slaves swp1-2
-          - add bridge bridge ports swp1-4
-        commit: yes         
+          - del all
+        commit: yes
+
+    - name: Configurer le bridge VLAN-aware
+      nclu:
+        commands:
+          - add bridge bridge vlan-aware
+          - add bridge bridge ports bond0,swp3,swp4
+          - add bridge bridge vids 10,20
+        commit: yes
+
+    - name: Configurer bond0 LACP vers le serveur NFS (VLAN 10 access)
+      nclu:
+        commands:
+          - add bond bond0 bond slaves swp1,swp2
+          - add bond bond0 bond mode 802.3ad
+          - add bond bond0 bond lacp-rate fast
+          - add bond bond0 bond miimon 100
+          - add bond bond0 bridge access 10
+        commit: yes
+
+    - name: Configurer swp4 accès VLAN 10 (Machine1)
+      nclu:
+        commands:
+          - add interface swp4 bridge access 10
+        commit: yes
+
+    - name: Configurer swp3 trunk vers Switch3 (VLAN 10 + 20)
+      nclu:
+        commands:
+          - add interface swp3 bridge trunk vlans 10,20
+        commit: yes
 
     - name: Vérifier les interfaces
       command: net show interface
       register: interface_status
 
-    - name: Afficher le résultat
+    - name: Afficher les interfaces
       debug:
         msg: "{{ interface_status.stdout_lines }}"
+
+    - name: Vérifier les VLANs
+      command: net show bridge vlan
+      register: vlan_status
+
+    - name: Afficher les VLANs
+      debug:
+        msg: "{{ vlan_status.stdout_lines }}"

@@ -1,15 +1,33 @@
-- name: Configuration de Switch2 
-- hosts: Switch2
+- name: Configuration de Switch2 (L2 - VLAN 20)
+  hosts: Switch2
   gather_facts: no
-  
-  
+
   tasks:
-    - name: Configurer les interfaces swp1 et swp2 
+
+    - name: Supprimer la configuration existante
       nclu:
         commands:
-          - net add interface swp1-2
-          - net add bridge bridge ports swp1-2
-          
+          - del all
+        commit: yes
+
+    - name: Configurer le bridge VLAN-aware
+      nclu:
+        commands:
+          - add bridge bridge vlan-aware
+          - add bridge bridge ports swp1,swp2
+          - add bridge bridge vids 10,20
+        commit: yes
+
+    - name: Configurer swp1 accès VLAN 20 (Machine2)
+      nclu:
+        commands:
+          - add interface swp1 bridge access 20
+        commit: yes
+
+    - name: Configurer swp2 trunk vers Switch3 (VLAN 10 + 20)
+      nclu:
+        commands:
+          - add interface swp2 bridge trunk vlans 10,20
         commit: yes
 
     - name: Vérifier les interfaces
@@ -18,6 +36,12 @@
 
     - name: Afficher les interfaces
       debug:
-        msg: "{{ interface_status.stdout_lines }}"  
-    
+        msg: "{{ interface_status.stdout_lines }}"
 
+    - name: Vérifier les VLANs
+      command: net show bridge vlan
+      register: vlan_status
+
+    - name: Afficher les VLANs
+      debug:
+        msg: "{{ vlan_status.stdout_lines }}"
