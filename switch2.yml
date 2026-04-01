@@ -3,45 +3,46 @@
   gather_facts: no
 
   tasks:
+   - name: Supprimer la configuration existante
+     nclu:
+       commands:
+          - del interface swp1 ip address
+          - del interface swp2 ip address
+       commit: yes
 
-    - name: Supprimer la configuration existante
-      nclu:
-        commands:
-          - del all
-        commit: yes
+   - name: Configurer le bridge VLAN-aware
+     nclu:
+       commands:
+         - add bridge bridge vlan-aware
+         - add bridge bridge ports swp1,swp2
+         - add bridge bridge vids 10,20
+       commit: yes
 
-    - name: Configurer le bridge VLAN-aware
-      nclu:
-        commands:
-          - add bridge bridge vlan-aware
-          - add bridge bridge ports swp1,swp2
-          - add bridge bridge vids 10,20
-        commit: yes
+   - name: Configurer swp1 accès VLAN 20 (Machine2)
+     nclu:
+       commands:
+         - add interface swp1 bridge access 20
+       commit: yes
 
-    - name: Configurer swp1 accès VLAN 20 (Machine2)
-      nclu:
-        commands:
-          - add interface swp1 bridge access 20
-        commit: yes
+   - name: Configurer swp2 trunk vers Switch3 (VLAN 10 + 20)
+     nclu:
+       commands:
+         - add interface swp2 bridge trunk vlans 10,20
+       commit: yes
 
-    - name: Configurer swp2 trunk vers Switch3 (VLAN 10 + 20)
-      nclu:
-        commands:
-          - add interface swp2 bridge trunk vlans 10,20
-        commit: yes
+   - name: Vérifier les interfaces
+     command: net show interface
+     register: interface_status
 
-    - name: Vérifier les interfaces
-      command: net show interface
-      register: interface_status
+   - name: Afficher les interfaces
+     debug:
+       msg: "{{ interface_status.stdout_lines }}"
 
-    - name: Afficher les interfaces
-      debug:
-        msg: "{{ interface_status.stdout_lines }}"
+   - name: Vérifier les VLANs
+     command: net show bridge vlan
+     register: vlan_status
 
-    - name: Vérifier les VLANs
-      command: net show bridge vlan
-      register: vlan_status
+   - name: Afficher les VLANs
+     debug:
+       msg: "{{ vlan_status.stdout_lines }}"
 
-    - name: Afficher les VLANs
-      debug:
-        msg: "{{ vlan_status.stdout_lines }}"

@@ -12,19 +12,15 @@
     nfs_share: /srv/partage
 
   tasks:
-
-    - name: Mettre à jour les paquets
-      apt:
-        update_cache: yes
-        upgrade: dist
-
-    - name: Installer ifenslave et nfs-kernel-server
-      apt:
-        name:
-          - ifenslave
-          - nfs-kernel-server
-          - nfs-common
-        state: present
+ 
+    # - name: Installer ifenslave et nfs-kernel-server
+    #  apt:
+     #   name:
+      #    - ifenslave
+       #   - nfs-kernel-server
+        #  - nfs-common
+       # state: present
+       # update_cache: yes
 
     - name: Charger le module bonding
       modprobe:
@@ -92,6 +88,14 @@
         name: nfs-kernel-server
         enabled: yes
         state: started
+   
+    - name: Forcer l'execution de handler
+      meta: flush_handlers
+
+    - name: attendre que bond0 soit active 
+      wait_for:
+        path: /proc/net/bonding/bond0
+        timeout: 30
 
     - name: Vérifier le statut du bond
       command: cat /proc/net/bonding/bond0

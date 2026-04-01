@@ -4,15 +4,6 @@
   gather_facts: no
 
   tasks:
-
-    - name: Installer les paquets réseau
-      apt:
-        name:
-          - net-tools
-          - iproute2
-        state: present
-        update_cache: yes
-
     - name: Configurer ens33 avec IP fixe et gateway
       copy:
         dest: /etc/network/interfaces

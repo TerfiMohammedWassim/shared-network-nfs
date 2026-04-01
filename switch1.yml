@@ -4,35 +4,36 @@
 
   tasks:
 
-    - name: Supprimer la configuration existante
-      nclu:
-        commands:
-          - del all
-        commit: yes
+    #- name: Supprimer la configuration existante
+     # nclu:
+      #  commands:
+       #   - del all
+       # commit: yes
 
-    - name: Configurer le bridge VLAN-aware
-      nclu:
-        commands:
-          - add bridge bridge vlan-aware
-          - add bridge bridge ports bond0,swp3,swp4
-          - add bridge bridge vids 10,20
-        commit: yes
 
     - name: Configurer bond0 LACP vers le serveur NFS (VLAN 10 access)
-      nclu:
-        commands:
-          - add bond bond0 bond slaves swp1,swp2
-          - add bond bond0 bond mode 802.3ad
-          - add bond bond0 bond lacp-rate fast
-          - add bond bond0 bond miimon 100
-          - add bond bond0 bridge access 10
-        commit: yes
+      command: " {{ item }}"
+      loop:
+        - net add bond bond0 bond slaves swp1,swp2
+        - net add bond bond0 bond mode 802.3ad
+        - net add bond bond0 bond miimon 100
+        - net add bond bond0 bridge access 10
+        - net commit
+
+    - name: Configurer le bridge VLAN-aware
+      command: " {{ item }}"
+      loop:
+        - net add bridge bridge vlan-aware
+        - net add bridge bridge ports bond0,swp3,swp4
+        - net add bridge bridge vids 10,20
+        - net commit
+
 
     - name: Configurer swp4 accès VLAN 10 (Machine1)
-      nclu:
-        commands:
-          - add interface swp4 bridge access 10
-        commit: yes
+      command: " {{ item }}"
+      loop:
+        - net add interface swp4 bridge access 10
+        - net commit
 
     - name: Configurer swp3 trunk vers Switch3 (VLAN 10 + 20)
       nclu:

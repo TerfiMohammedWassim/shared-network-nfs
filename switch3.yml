@@ -1,99 +1,42 @@
 - name: Configuration de Switch3 (L3 - Routage inter-VLAN + ACL)
   hosts: Switch3
+  vars: 
+    ansible_python_interpreter: /usr/bin/python3
   gather_facts: no
 
   tasks:
-
-    - name: Supprimer la configuration existante
-      nclu:
-        commands:
-          - del all
-        commit: yes
-
+    
+    - name: Supprimer les config
+      command: "{{ item }}" 
+      loop:  
+        - net del interface swp1 ip address
+        - net del interface swp2 ip address 
+        - net commit
+      ignore_errors: yes
+     
     - name: Configurer le bridge VLAN-aware
-      nclu:
-        commands:
-          - add bridge bridge vlan-aware
-          - add bridge bridge ports swp1,swp2
-          - add bridge bridge vids 10,20
-        commit: yes
+      command: net add bridge bridge ports swp1,swp2
+          
+    - name: ajouter un bridge au vlans
+      command: net add bridge bridge vlan-aware
+          
+    - name: ajouter vids
+      command: net add bridge bridge vids 10,20
 
     - name: Configurer swp1 trunk vers Switch1 (VLAN 10 + 20)
-      nclu:
-        commands:
-          - add interface swp1 bridge trunk vlans 10,20
-        commit: yes
+      command: net add interface swp1 bridge trunk vlans 10,20
 
     - name: Configurer swp2 trunk vers Switch2 (VLAN 10 + 20)
-      nclu:
-        commands:
-          - add interface swp2 bridge trunk vlans 10,20
-        commit: yes
+      command: net add interface swp2 bridge trunk vlans 10,20
 
     - name: Configurer les SVIs - passerelles inter-VLAN
-      nclu:
-        commands:
-          - add vlan 10 ip address 192.168.10.254/24
-          - add vlan 20 ip address 192.168.20.254/24
-        commit: yes
+      command: net add vlan 10 ip address 192.168.10.254/24
+          
+    - name: Configurer les SVIS
+      command: net add vlan 20 ip address 192.168.20.254/24
 
     - name: Activer le routage L3
-      nclu:
-        commands:
-          - add routing defaults datacenter
-        commit: yes
-
-    - name: Créer le fichier ACL iptables pour isolation Machine1/Machine2
-      copy:
-        dest: /etc/cumulus/acl/policy.d/99_block_inter_vlan.rules
-        content: |
-          [iptables]
-
-          # Autoriser les connexions déjà établies (réponses retour NFS → VLAN20)
-          -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-          # Autoriser VLAN10 → Serveur NFS
-          -A FORWARD -i vlan10 -d 192.168.10.10 -j ACCEPT
-
-          # Autoriser VLAN20 → Serveur NFS
-          -A FORWARD -i vlan20 -d 192.168.10.10 -j ACCEPT
-
-          # Bloquer VLAN10 → VLAN20 (isolation Machine1 / Machine2)
-          -A FORWARD -i vlan10 -d 192.168.20.0/24 -j DROP
-
-          # Bloquer VLAN20 → VLAN10 (isolation Machine2 / Machine1)
-          -A FORWARD -i vlan20 -d 192.168.10.0/24 -j DROP
-
-    - name: Appliquer les règles ACL iptables
-      command: cl-acltool -i
-      ignore_errors: yes
-
-    - name: Appliquer les règles iptables directement (Cumulus VX)
-      shell: |
-        iptables -F FORWARD
-        iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-        iptables -A FORWARD -i vlan10 -d 192.168.10.10 -j ACCEPT
-        iptables -A FORWARD -i vlan20 -d 192.168.10.10 -j ACCEPT
-        iptables -A FORWARD -i vlan10 -d 192.168.20.0/24 -j DROP
-        iptables -A FORWARD -i vlan20 -d 192.168.10.0/24 -j DROP
-
-    - name: Installer iptables-persistent pour la persistance au reboot
-      apt:
-        name: iptables-persistent
-        state: present
-      ignore_errors: yes
-
-    - name: Sauvegarder les règles iptables
-      command: netfilter-persistent save
-      ignore_errors: yes
-
-    - name: Vérifier les règles iptables actives
-      command: iptables -L FORWARD -v --line-numbers
-      register: iptables_status
-
-    - name: Afficher les règles iptables
-      debug:
-        msg: "{{ iptables_status.stdout_lines }}"
+      command: net add routing defaults datacenter
 
     - name: Vérifier les interfaces
       command: net show interface
